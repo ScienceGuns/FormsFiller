@@ -1,0 +1,63 @@
+name: 'Validation'
+
+on: pull_request
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-modules-${{ hashFiles('**/go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-go-modules-
+      - name: Build macOS ARM64 binary
+        run: GOOS=darwin GOARCH=arm64 go build -o build/formsfiller-darwin-arm64
+      - name: Build Linux x86_64 binary
+        run: GOOS=linux GOARCH=amd64 go build -o build/formsfiller-linux-amd64
+  check-version-incremented:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Get version from PR branch
+        id: pr_version
+        run: |
+          version=$(go run main.go version | grep -i "Version:" | awk '{print $2}')
+          echo "PR version: $version"
+          echo "::set-output name=pr_version::$version"
+      - name: Checkout target branch code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.base_ref }}
+      - name: Get version from target branch
+        id: base_version
+        run: |
+          version=$(go run main.go version | grep -i "Version:" | awk '{print $2}')
+          echo "Target branch version: $version"
+          echo "::set-output name=base_version::$version"
+      - name: Compare versions
+        run: |
+          if [ "${{ steps.pr_version.outputs.pr_version }}" == "${{ steps.base_version.outputs.base_version }}" ]; then
+            echo "Error: You must increment the version before merging!"
+            exit 1
+          else
+            echo "Version is different. Validate this is an increment in PR."
+          fi

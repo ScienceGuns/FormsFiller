@@ -1,0 +1,31 @@
+version: 2
+project_name: formsfiller
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    targets:
+      - darwin_arm64
+      - linux_amd64
+
+# GitHub release archive formats
+archives:
+  - formats:
+     - tar.gz
+
+brews:
+  - name: formsfiller
+    directory: Formula
+    repository:
+      owner: ScienceGuns
+      name: homebrew-taps
+#      branch: "release-{{.Version}}"
+      # Token to push to tap repo
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+#      pull_request:
+#        enabled: true
+
+    # Information for the formula
+    description: "Generate various ATF eForms PDFs using templated data to save time and effort"
+    homepage: "https://scienceguns.com"
+    license: "MIT"
