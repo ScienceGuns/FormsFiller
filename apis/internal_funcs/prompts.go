@@ -42,6 +42,45 @@ func PromptOptionalText(reader *bufio.Reader, question string) (string, error) {
 	return readLine(reader)
 }
 
+// PromptTextOrBlank Ask a question where a blank answer is normal, so it's accepted the first time without a warning
+func PromptTextOrBlank(reader *bufio.Reader, question string) (string, error) {
+	fmt.Printf("%s: ", question)
+	return readLine(reader)
+}
+
+// PromptTextWithDefault Ask a question showing defaultAnswer, which is used when the user just presses Enter.
+// With no default the question can't be left blank.
+func PromptTextWithDefault(reader *bufio.Reader, question string, defaultAnswer string) (string, error) {
+	if defaultAnswer == "" {
+		return PromptRequiredText(reader, question)
+	}
+	fmt.Printf("%s [%s]: ", question, defaultAnswer)
+	answer, err := readLine(reader)
+	if err != nil {
+		return "", err
+	}
+	if answer == "" {
+		return defaultAnswer, nil
+	}
+	return answer, nil
+}
+
+// PromptValidatedText Ask a question until validate accepts the answer, showing the user why each rejected answer failed
+func PromptValidatedText(reader *bufio.Reader, question string, validate func(answer string) error) (string, error) {
+	for {
+		fmt.Printf("%s: ", question)
+		answer, err := readLine(reader)
+		if err != nil {
+			return "", err
+		}
+		validationErr := validate(answer)
+		if validationErr == nil {
+			return answer, nil
+		}
+		fmt.Printf("Invalid answer: %v. Please try again.\n", validationErr)
+	}
+}
+
 // PromptChoice Show a numbered list of options and return the index of the one the user picks
 func PromptChoice(reader *bufio.Reader, heading string, options []string) (int, error) {
 	// A menu with nothing on it can't be answered

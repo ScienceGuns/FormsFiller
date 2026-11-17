@@ -7,6 +7,7 @@ package internal_funcs
 
 import (
 	"bufio"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -133,6 +134,94 @@ func TestPromptYesNo(t *testing.T) {
 			}
 			if got != test.want {
 				t.Errorf("Expected answer to be '%t', but got '%t'", test.want, got)
+			}
+		})
+	}
+}
+
+// TestPromptTextOrBlank validates that a blank answer is accepted right away and other answers are trimmed
+func TestPromptTextOrBlank(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"Blank", "\n", "", false},
+		{"An answer", "  934 Texas Ave  \n", "934 Texas Ave", false},
+		{"No input at all", "", "", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := bufio.NewReader(strings.NewReader(test.input))
+			got, err := PromptTextOrBlank(reader, "Where should ISIS mail it?")
+			if (err != nil) != test.wantErr {
+				t.Fatalf("PromptTextOrBlank() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if got != test.want {
+				t.Errorf("Expected answer to be '%s', but got '%s'", test.want, got)
+			}
+		})
+	}
+}
+
+// TestPromptValidatedText validates that answers are asked for again until the validator accepts one
+func TestPromptValidatedText(t *testing.T) {
+	// onlyGauss Accept nothing but the name of Mad Scientist Research's SBR
+	onlyGauss := func(answer string) error {
+		if answer != "The Gauss" {
+			return errors.New("that's not The Gauss")
+		}
+		return nil
+	}
+
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"First try", "The Gauss\n", "The Gauss", false},
+		{"Rejected then accepted", "Danger Zone\n\nThe Gauss\n", "The Gauss", false},
+		{"Input ends with no valid answer", "Danger Zone\n", "", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := bufio.NewReader(strings.NewReader(test.input))
+			got, err := PromptValidatedText(reader, "Which SBR?", onlyGauss)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("PromptValidatedText() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if got != test.want {
+				t.Errorf("Expected answer to be '%s', but got '%s'", test.want, got)
+			}
+		})
+	}
+}
+
+// TestPromptTextWithDefault validates that Enter takes the default, anything else replaces it, and no default means an answer is required
+func TestPromptTextWithDefault(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		defaultAnswer string
+		want          string
+		wantErr       bool
+	}{
+		{"Enter takes the default", "\n", "1 Figgis Agency Plaza", "1 Figgis Agency Plaza", false},
+		{"An answer replaces the default", "934 Ranch Road\n", "1 Figgis Agency Plaza", "934 Ranch Road", false},
+		{"No default re-asks on blank", "\n934 Ranch Road\n", "", "934 Ranch Road", false},
+		{"No input at all", "", "1 Figgis Agency Plaza", "", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := bufio.NewReader(strings.NewReader(test.input))
+			got, err := PromptTextWithDefault(reader, "Where's the lab?", test.defaultAnswer)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("PromptTextWithDefault() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if got != test.want {
+				t.Errorf("Expected answer to be '%s', but got '%s'", test.want, got)
 			}
 		})
 	}

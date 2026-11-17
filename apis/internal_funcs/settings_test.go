@@ -482,3 +482,80 @@ func TestValidateStateOfBirth(t *testing.T) {
 		})
 	}
 }
+
+// TestReadSettingsFile_Interstate validates the optional 5320.20 settings, including telling a missing key apart
+// from one set to false or ""
+func TestReadSettingsFile_Interstate(t *testing.T) {
+	// Set a fixed point in time (Archer's original air date) for the date of birth check
+	realNow := now
+	now = func() time.Time { return time.Date(2009, time.September, 17, 12, 0, 0, 0, time.UTC) }
+	defer func() { now = realNow }()
+
+	tests := []struct {
+		name           string
+		interstateJSON string
+		wantReturn     *bool
+		wantMailing    *string
+		wantReason     string
+	}{
+		{"No interstate section", "", nil, nil, ""},
+		{"Set to false and blank", `,
+  "interstate": {
+    "return-to-original-location": false,
+    "returned-form-mailing-address": "",
+    "reason": "Training at the Danger Zone range"
+  }`, new(bool), new(string), "Training at the Danger Zone range"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Write Dr. Krieger's settings file with his county and this test's interstate section
+			tempDirectory := t.TempDir()
+			settingsFilePath := filepath.Join(tempDirectory, "formsfiller.json")
+			settingsJSON := fmt.Sprintf(`{
+  "settings": {
+    "output-path": "%s"
+  },
+  "user-data": {
+    "full-legal-name": "Algernop Krieger",
+    "full-legal-address": "1 Figgis Agency Plaza, New York, NY 10001",
+    "phone-number": "212-555-0187",
+    "email-address": "dr.krieger@figgis.example",
+    "social-security-number": "078-05-1120",
+    "date-of-birth": "09/24/1977",
+    "ethnicity": "Not Hispanic or Latino",
+    "race": ["White"],
+    "state-of-birth": "New York",
+    "country-of-birth": "United States of America",
+    "county": "New York"
+  },
+  "cleo": {
+    "agency-name": "New York City Police Department",
+    "official-name-and-title": "Barry Dylan, Chief of Police",
+    "mailing-address": "1 Police Plaza, New York, NY 10007"
+  }%s
+}`, tempDirectory, test.interstateJSON)
+			if err := os.WriteFile(settingsFilePath, []byte(settingsJSON), 0400); err != nil {
+				t.Fatalf("Failed to write settings file: %v", err)
+			}
+
+			settings, err := ReadSettingsFile(settingsFilePath)
+			if err != nil {
+				t.Fatalf("ReadSettingsFile() returned an unexpected error: %v", err)
+			}
+			if settings.UserData.County != "New York" {
+				t.Errorf("Expected county to be '%s', but got '%s'", "New York", settings.UserData.County)
+			}
+			if (settings.Interstate.ReturnToOriginalLocation == nil) != (test.wantReturn == nil) {
+				t.Errorf("Expected return-to-original-location set to be '%t', but got '%t'", test.wantReturn != nil, settings.Interstate.ReturnToOriginalLocation != nil)
+			} else if test.wantReturn != nil && *settings.Interstate.ReturnToOriginalLocation != *test.wantReturn {
+				t.Errorf("Expected return-to-original-location to be '%t', but got '%t'", *test.wantReturn, *settings.Interstate.ReturnToOriginalLocation)
+			}
+			if (settings.Interstate.ReturnedFormMailingAddress == nil) != (test.wantMailing == nil) {
+				t.Errorf("Expected returned-form-mailing-address set to be '%t', but got '%t'", test.wantMailing != nil, settings.Interstate.ReturnedFormMailingAddress != nil)
+			}
+			if settings.Interstate.Reason != test.wantReason {
+				t.Errorf("Expected reason to be '%s', but got '%s'", test.wantReason, settings.Interstate.Reason)
+			}
+		})
+	}
+}

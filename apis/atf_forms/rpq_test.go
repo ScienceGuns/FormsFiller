@@ -39,7 +39,8 @@ func TestCheckRPQSettings(t *testing.T) {
 
 // TestPromptRPQAnswers validates that each prompt's answer lands in the right place, including after bad input
 func TestPromptRPQAnswers(t *testing.T) {
-	// Form 4, a bad firearm type then Short-Barreled Rifle, a blank maker name, then The Gauss SBR
+	// Form 4, a bad firearm type then Short-Barreled Rifle, a blank maker name, a caliber written as a name,
+	// then The Gauss SBR
 	input := strings.Join([]string{
 		"2",
 		"7",
@@ -48,6 +49,7 @@ func TestPromptRPQAnswers(t *testing.T) {
 		"Mad Scientist Research LLC",
 		"Perkiomenville, PA 18074",
 		"The Gauss",
+		".300 BLK",
 		"300",
 		"TGB126MS0001",
 	}, "\n") + "\n"

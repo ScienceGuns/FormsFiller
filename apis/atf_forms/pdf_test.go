@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
 // TestClearMultilineFlag validates that the date of birth fields can be made single line and a missing field is an error
@@ -29,8 +31,9 @@ func TestClearMultilineFlag(t *testing.T) {
 		fieldNames []string
 		wantErr    bool
 	}{
-		{"Both date of birth fields", []string{"#field[24]", "#field[22]"}, false},
-		{"A field the template doesn't have", []string{"#field[24]", "#field[934]"}, true},
+		{"Both date of birth fields", []string{"topmostSubform[0].Page1[0].#field[24]", "topmostSubform[0].Page5[0].#field[22]"}, false},
+		{"A field the template doesn't have", []string{"topmostSubform[0].Page1[0].#field[24]", "topmostSubform[0].Page1[0].#field[934]"}, true},
+		{"Just the short name", []string{"#field[24]"}, true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -246,5 +249,121 @@ func TestLastName(t *testing.T) {
 				t.Errorf("Expected last name to be '%s', but got '%s'", test.want, got)
 			}
 		})
+	}
+}
+
+// TestReadFieldWidths validates that field widths are read from the template under their full names
+func TestReadFieldWidths(t *testing.T) {
+	// Keep pdfcpu's config in a temp directory
+	realPdfcpuConfigRoot := pdfcpuConfigRoot
+	pdfcpuConfigRoot = t.TempDir()
+	defer func() { pdfcpuConfigRoot = realPdfcpuConfigRoot }()
+
+	fieldWidths, err := readFieldWidths(interstateTemplate)
+	if err != nil {
+		t.Fatalf("readFieldWidths() returned an unexpected error: %v", err)
+	}
+	// The Caliber column is the narrowest at about 35pt and Item 9 runs across the page at about 560pt
+	tests := []struct {
+		fieldName string
+		minWidth  float64
+		maxWidth  float64
+	}{
+		{interstatePage + "TextField81[0]", 34, 36},
+		{interstatePage + "TextField16[0]", 559, 562},
+	}
+	for _, test := range tests {
+		width, exists := fieldWidths[test.fieldName]
+		if !exists {
+			t.Errorf("Expected a width for %s, but there wasn't one", test.fieldName)
+			continue
+		}
+		if width < test.minWidth || width > test.maxWidth {
+			t.Errorf("Expected %s to be %.0f-%.0fpt wide, but got %.1f", test.fieldName, test.minWidth, test.maxWidth, width)
+		}
+	}
+}
+
+// TestTextFitsWidth validates text measurement against the 5320.20's 113pt Manufacturer column
+func TestTextFitsWidth(t *testing.T) {
+	// Keep pdfcpu's config in a temp directory
+	realPdfcpuConfigRoot := pdfcpuConfigRoot
+	pdfcpuConfigRoot = t.TempDir()
+	defer func() { pdfcpuConfigRoot = realPdfcpuConfigRoot }()
+
+	tests := []struct {
+		name     string
+		text     string
+		fontSize int
+		want     bool
+	}{
+		{"Short name at 9pt", "Krieger Laboratories", 9, true},
+		{"Company name at 9pt", "Mad Scientist Research LLC", 9, false},
+		{"Company name at 8pt", "Mad Scientist Research LLC", 8, true},
+		{"Spelled out at 6pt", "Mad Scientist Research Limited Liability Company", 6, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := textFitsWidth(test.text, 112.9, test.fontSize)
+			if err != nil {
+				t.Fatalf("textFitsWidth() returned an unexpected error: %v", err)
+			}
+			if got != test.want {
+				t.Errorf("Expected fits to be '%t', but got '%t'", test.want, got)
+			}
+		})
+	}
+}
+
+// TestFitFontSizes validates that a value too wide at 9pt gets a smaller font, a short one keeps 9pt,
+// and one that won't fit even at the smallest size is an error
+func TestFitFontSizes(t *testing.T) {
+	// Keep pdfcpu's config in a temp directory
+	realPdfcpuConfigRoot := pdfcpuConfigRoot
+	pdfcpuConfigRoot = t.TempDir()
+	defer func() { pdfcpuConfigRoot = realPdfcpuConfigRoot }()
+
+	manufacturerField := interstatePage + "TextField51[0]"
+	modelField := interstatePage + "TextField91[0]"
+	fittedPDF, err := fitFontSizes(interstateTemplate, map[string]string{
+		manufacturerField: "Mad Scientist Research LLC",
+		modelField:        "The Gauss",
+	})
+	if err != nil {
+		t.Fatalf("fitFontSizes() returned an unexpected error: %v", err)
+	}
+
+	// Read the font settings back out of the fitted template
+	pdfContext, err := readFormContext(fittedPDF)
+	if err != nil {
+		t.Fatalf("readFormContext() returned an unexpected error: %v", err)
+	}
+	fontSettings := map[string]string{}
+	err = visitFormFields(pdfContext.XRefTable, func(fullName string, fieldDict types.Dict) error {
+		if fullName == manufacturerField || fullName == modelField {
+			defaultAppearance, err := pdfContext.DereferenceStringOrHexLiteral(fieldDict["DA"], model.V10, nil)
+			if err != nil {
+				return err
+			}
+			fontSettings[fullName] = defaultAppearance
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("visitFormFields() returned an unexpected error: %v", err)
+	}
+	if !strings.Contains(fontSettings[manufacturerField], " 8 Tf") {
+		t.Errorf("Expected the manufacturer font to be '%s', but got '%s'", "8 Tf", fontSettings[manufacturerField])
+	}
+	if !strings.Contains(fontSettings[modelField], " 9 Tf") {
+		t.Errorf("Expected the model font to be '%s', but got '%s'", "9 Tf", fontSettings[modelField])
+	}
+
+	// A value that can't fit at any size is refused
+	_, err = fitFontSizes(interstateTemplate, map[string]string{
+		manufacturerField: "Mad Scientist Research Limited Liability Company",
+	})
+	if err == nil {
+		t.Errorf("Expected fitFontSizes() to return an error, but got nil")
 	}
 }
