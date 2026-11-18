@@ -13,36 +13,69 @@ import (
 	"testing"
 )
 
-// TestSelectForm validates that SelectForm returns the 5320.23 when the settings have a trust
+// TestSelectForm validates that SelectForm offers both forms when the settings have a trust
 func TestSelectForm(t *testing.T) {
-	// Dr. Krieger's settings with his trust filled in
-	var settings internal_funcs.FFConfig
-	settings.UserData.TrustName = "The Krieger Clone Trust"
-	settings.UserData.TrustAddress = "1 Figgis Agency Plaza, New York, NY 10001"
-
-	reader := bufio.NewReader(strings.NewReader("1\n"))
-	selectedForm, err := SelectForm(reader, &settings)
-	if err != nil {
-		t.Fatalf("SelectForm() returned an unexpected error: %v", err)
+	tests := []struct {
+		name     string
+		input    string
+		wantForm string
+	}{
+		{"5320.23", "1\n", "5320.23 - Responsible Persons Questionnaire"},
+		{"5320.20", "2\n", "5320.20 - Application to Transport Interstate"},
 	}
-	if selectedForm.Name != "5320.23 - Responsible Persons Questionnaire" {
-		t.Errorf("Expected form to be '%s', but got '%s'", "5320.23 - Responsible Persons Questionnaire", selectedForm.Name)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Dr. Krieger's settings with his trust filled in
+			var settings internal_funcs.FFConfig
+			settings.UserData.TrustName = "The Krieger Clone Trust"
+			settings.UserData.TrustAddress = "1 Figgis Agency Plaza, New York, NY 10001"
+
+			reader := bufio.NewReader(strings.NewReader(test.input))
+			selectedForm, err := SelectForm(reader, &settings)
+			if err != nil {
+				t.Fatalf("SelectForm() returned an unexpected error: %v", err)
+			}
+			if selectedForm.Name != test.wantForm {
+				t.Errorf("Expected form to be '%s', but got '%s'", test.wantForm, selectedForm.Name)
+			}
+		})
 	}
 }
 
-// TestSelectForm_NoTrust validates that SelectForm fails without asking when no form is available
+// TestSelectForm_NoTrust validates that without a trust only the 5320.20 is offered
 func TestSelectForm_NoTrust(t *testing.T) {
 	// Dr. Krieger's settings without a trust
 	var settings internal_funcs.FFConfig
 
+	// Option 2 doesn't exist without a trust, so it's rejected before option 1 is accepted
+	reader := bufio.NewReader(strings.NewReader("2\n1\n"))
+	selectedForm, err := SelectForm(reader, &settings)
+	if err != nil {
+		t.Fatalf("SelectForm() returned an unexpected error: %v", err)
+	}
+	if selectedForm.Name != "5320.20 - Application to Transport Interstate" {
+		t.Errorf("Expected form to be '%s', but got '%s'", "5320.20 - Application to Transport Interstate", selectedForm.Name)
+	}
+}
+
+// TestSelectForm_NoneAvailable validates that SelectForm fails without asking, and says why, when no form is available
+func TestSelectForm_NoneAvailable(t *testing.T) {
+	// Swap in a fake form the settings never support
+	realSupportedForms := supportedForms
+	supportedForms = []ATFForm{
+		{Name: "Form Danger Zone", CheckSettings: func(settings *internal_funcs.FFConfig) error { return errors.New("lana") }},
+	}
+	defer func() { supportedForms = realSupportedForms }()
+
 	// No input is given, so if SelectForm prompts it will fail on the input instead
+	var settings internal_funcs.FFConfig
 	reader := bufio.NewReader(strings.NewReader(""))
 	_, err := SelectForm(reader, &settings)
 	if err == nil {
 		t.Fatalf("Expected SelectForm() to return an error, but got nil")
 	}
-	if !strings.Contains(err.Error(), "trust-name is blank") {
-		t.Errorf("Expected error to mention '%s', but got '%s'", "trust-name is blank", err.Error())
+	if !strings.Contains(err.Error(), "Form Danger Zone (lana)") {
+		t.Errorf("Expected error to mention '%s', but got '%s'", "Form Danger Zone (lana)", err.Error())
 	}
 }
 

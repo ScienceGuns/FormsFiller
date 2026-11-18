@@ -13,11 +13,10 @@ before you sign it.
 Supported Forms
 ---------------
 
-| Form    | Name                              | Settings it needs                |
-|---------|-----------------------------------|----------------------------------|
-| 5320.23 | Responsible Persons Questionnaire | `trust-name` and `trust-address` |
+1. [ATF Form 5320.23 - Responsible Persons Questionnaire](docs/SupportedForms.md#form-532023)
+2. [ATF Form 5320.20 - Application to Transport Interstate](docs/SupportedForms.md#form-532020)
 
-A form your settings don't support is left off the menu.
+See [Supported Forms](docs/SupportedForms.md) for the settings each form needs and how Forms Filler fills it out.
 
 Installing
 ----------
@@ -60,12 +59,20 @@ Currently supported values:
       "race": ["White"],
       "country-of-citizenship": "",
       "state-of-birth": "New York",
-      "country-of-birth": "United States of America"
+      "country-of-birth": "United States of America",
+      "county": "New York"
    },
    "cleo": {
       "agency-name": "New York City Police Department",
       "official-name-and-title": "Barry Dylan, Chief of Police",
       "mailing-address": "1 Police Plaza, New York, NY 10007"
+   },
+   "interstate": {
+      "return-to-original-location": true,
+      "returned-form-mailing-address": "",
+      "reason": "Training at the Danger Zone range",
+      "transporting-from": "1 Figgis Agency Plaza, New York, NY 10001",
+      "mode-of-transportation": "Personal vehicle"
    }
 }
 ```
@@ -74,12 +81,23 @@ Every key in the example is required except these optional ones:
 
 1. `settings.output-path` (Default: `~/Desktop`) The folder finished forms are saved in. A leading `~` works.
 2. `user-data.trust-name` (Default: blank) The trust or legal entity you are a responsible person for. Leaving it blank
-   turns off the 5320.23.
+   turns off the 5320.23 and makes you the registered owner on the 5320.20.
 3. `user-data.trust-address` (Default: blank) The trust or legal entity's address. Required when `trust-name` is set.
 4. `user-data.other-names-used` (Default: blank) Aliases or a maiden name.
 5. `user-data.country-of-citizenship` (Default: blank, meaning the U.S.A.) Any other country checks the "Other" box in
    Item 9a instead of the U.S.A. box.
 6. `user-data.state-of-birth` (Default: blank) Required when `country-of-birth` is the U.S.
+7. `user-data.county` (Default: blank) The county for Item 7 of the 5320.20. It's used as is along with
+   `interstate.transporting-from`, and offered as the default county when that address is asked for instead.
+8. `interstate` (Default: blank) Answers for the 5320.20. Each key that's left out is asked for when filling out the
+   form.
+   1. `return-to-original-location` - `true` or `false` for Item 2
+   2. `returned-form-mailing-address` - Item 5. Set it to `""` to always leave Item 5 blank, which sends the approved
+      form to the Item 1 address.
+   3. `reason` - Item 6
+   4. `transporting-from` - The Item 7 address. When it's left out, the trust's address (or yours without a trust) is
+      offered as the default.
+   5. `mode-of-transportation` - Item 9
 
 Some values have to be in a specific format:
 
@@ -102,33 +120,6 @@ Run `formsfiller` with no arguments:
 4. Review your answers. Answer `n` to start the questions over.
 5. The finished form is saved to your `output-path`.
 
-Form 5320.23
-------------
-
-The 5320.23 asks which ATF form it's being submitted with (Item 1) and about the firearm (Item 4). The maker's address
-can be left blank, since approved forms don't always list one.
-
-Each run saves two files, named `{Serial}_{Trust}_{LastName}_RPQ_ATF.pdf` and `{Serial}_{Trust}_{LastName}_RPQ_CLEO.pdf`
-with spaces removed:
-
-1. The ATF copy (pages 1-4) to upload with your eForms application.
-2. The CLEO copy (pages 5-6) to send to your chief law enforcement officer. It has no SSN or serial number, matching
-   ATF's own CLEO copy.
-
-Forms Filler assumes the responsible person can pass a NICS check, so it always answers:
-
-| Item           | Answer                                                 |
-|----------------|--------------------------------------------------------|
-| 6.a - 6.m.1    | No                                                     |
-| 6.m.2          | N/A, since it only applies after a Yes on 6.m.1        |
-| 7              | Left blank (alien or admission number)                 |
-| 8              | No UPIN ([UPIN support coming soon](TODO.md))          |
-| 9a             | `U.S.A.`, unless `country-of-citizenship` is set       |
-| Signature/Date | Left blank. Sign and date both copies yourself.        |
-| 3e (Photo)     | Left blank. eForms takes your photo as its own upload. |
-
-If any of these answers aren't true for you, fill out your 5320.23 by hand instead.
-
 Privacy
 -------
 Forms Filler doesn't connect to anything, so it works offline.
@@ -139,8 +130,8 @@ Forms Filler doesn't connect to anything, so it works offline.
 4. The first run creates `~/.config/scienceguns/pdfcpu/` with pdfcpu's settings and the font it fills forms with. The
    font is built into Forms Filler, so nothing is downloaded.
 
-The blank ATF form is built into Forms Filler. The pages themselves are never changed. Each saved copy is the official
-form with your answers filled in, unlocked.
+The blank ATF forms are built into Forms Filler. The pages themselves are never changed. Each saved copy is the official
+form with your answers filled in, unlocked, and with a smaller font in any field whose answer wouldn't otherwise fit.
 
 Dependencies
 ------------

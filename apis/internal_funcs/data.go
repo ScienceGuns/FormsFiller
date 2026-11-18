@@ -30,12 +30,22 @@ type FFConfig struct {
 		CountryOfCitizenship string   `json:"country-of-citizenship,omitempty"`
 		StateOfBirth         string   `json:"state-of-birth,omitempty"`
 		CountryOfBirth       string   `json:"country-of-birth"`
+		County               string   `json:"county,omitempty"`
 	} `json:"user-data"`
 	CLEO struct {
 		AgencyName           string `json:"agency-name"`
 		OfficialNameAndTitle string `json:"official-name-and-title"`
 		MailingAddress       string `json:"mailing-address"`
 	} `json:"cleo"`
+	// Interstate holds optional answers for the 5320.20. Anything left out is asked for when filling out the form.
+	// The pointers tell a key that's missing (ask) apart from one that's set to false or "" (don't ask).
+	Interstate struct {
+		ReturnToOriginalLocation   *bool   `json:"return-to-original-location,omitempty"`
+		ReturnedFormMailingAddress *string `json:"returned-form-mailing-address,omitempty"`
+		Reason                     string  `json:"reason,omitempty"`
+		TransportingFrom           string  `json:"transporting-from,omitempty"`
+		ModeOfTransportation       string  `json:"mode-of-transportation,omitempty"`
+	} `json:"interstate"`
 }
 
 // now is a variable that can be overridden for testing so date of birth checks are predictable

@@ -62,7 +62,7 @@ func fillRPQ(reader *bufio.Reader, settings *internal_funcs.FFConfig) error {
 	// Item 3g has to be drawn as a single line on both copies or the date of birth gets cut off
 	var dateOfBirthFields []string
 	for _, formCopy := range rpqCopies {
-		dateOfBirthFields = append(dateOfBirthFields, formCopy.DateOfBirthField)
+		dateOfBirthFields = append(dateOfBirthFields, formCopy.FrontPage+formCopy.DateOfBirthField)
 	}
 	rpqTemplateFixed, err := clearMultilineFlag(rpqTemplate, dateOfBirthFields)
 	if err != nil {
@@ -131,21 +131,26 @@ func promptRPQAnswers(reader *bufio.Reader) (rpqAnswers, error) {
 	// Items 4b through 4e are free text, asked in the order they appear on the form
 	fmt.Println()
 	// The maker's address can be blank since approved forms don't always list one (e.g. B&T USA LLC)
+	// Caliber is checked the same way as on the 5320.20
 	textPrompts := []struct {
 		question   string
 		answer     *string
 		allowBlank bool
+		validate   func(answer string) error
 	}{
-		{"Item 4b - Name of the maker, manufacturer and/or importer", &answers.MakerName, false},
-		{"Item 4b - Address of the maker, manufacturer and/or importer", &answers.MakerAddress, true},
-		{"Item 4c - Firearm model", &answers.Model, false},
-		{"Item 4d - Caliber or gauge", &answers.Caliber, false},
-		{"Item 4e - Firearm serial number", &answers.SerialNumber, false},
+		{"Item 4b - Name of the maker, manufacturer and/or importer", &answers.MakerName, false, nil},
+		{"Item 4b - Address of the maker, manufacturer and/or importer", &answers.MakerAddress, true, nil},
+		{"Item 4c - Firearm model", &answers.Model, false, nil},
+		{"Item 4d - Caliber or gauge (a number, like 556 or 300)", &answers.Caliber, false, validateCaliber},
+		{"Item 4e - Firearm serial number", &answers.SerialNumber, false, nil},
 	}
 	for _, textPrompt := range textPrompts {
-		if textPrompt.allowBlank {
+		switch {
+		case textPrompt.allowBlank:
 			*textPrompt.answer, err = internal_funcs.PromptOptionalText(reader, textPrompt.question)
-		} else {
+		case textPrompt.validate != nil:
+			*textPrompt.answer, err = internal_funcs.PromptValidatedText(reader, textPrompt.question, textPrompt.validate)
+		default:
 			*textPrompt.answer, err = internal_funcs.PromptRequiredText(reader, textPrompt.question)
 		}
 		if err != nil {

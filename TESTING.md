@@ -32,12 +32,20 @@ Forms Filler at it with `--settings-path`. Set `output-path` to a folder that ex
     "race": ["White"],
     "country-of-citizenship": "",
     "state-of-birth": "New York",
-    "country-of-birth": "United States of America"
+    "country-of-birth": "United States of America",
+    "county": "New York"
   },
   "cleo": {
     "agency-name": "New York City Police Department",
     "official-name-and-title": "Barry Dylan, Chief of Police",
     "mailing-address": "1 Police Plaza, New York, NY 10007"
+  },
+  "interstate": {
+    "return-to-original-location": true,
+    "returned-form-mailing-address": "",
+    "reason": "Training at the Danger Zone range",
+    "transporting-from": "1 Figgis Agency Plaza, New York, NY 10001",
+    "mode-of-transportation": "Personal vehicle"
   }
 }
 

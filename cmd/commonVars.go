@@ -11,7 +11,7 @@ import (
 )
 
 // The version string should be updated before any merge to main
-var shortVersion = "0.1.0"
+var shortVersion = "0.2.0"
 var projectMaintainer = "Mad Scientist Research LLC"
 var projectLicense = "MIT"
 var functionHelpShort = "Fill out ATF forms for NFA eForms submissions"
